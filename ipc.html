@@ -1,0 +1,1442 @@
+<!doctype html>
+<html lang="id" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IPC Message Passing Simulator | Industrial OS UI</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              navy: {
+                900: "#060d1a",
+                800: "#0b162c",
+                700: "#112240",
+                600: "#1a365d",
+              },
+              cyan: {
+                400: "#64ffda",
+                500: "#00e5ff",
+                900: "#003333",
+              },
+              eng: {
+                gray: "#8892b0",
+                light: "#ccd6f6",
+                dark: "#020c1b",
+              },
+            },
+            fontFamily: {
+              bebas: ["Bebas Neue", "sans-serif"],
+              rajdhani: ["Rajdhani", "sans-serif"],
+              inter: ["Inter", "sans-serif"],
+              mono: ["JetBrains Mono", "monospace"],
+            },
+            backgroundImage: {
+              blueprint:
+                "linear-gradient(rgba(100, 255, 218, 0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(100, 255, 218, 0.1) 1px, transparent 1px), linear-gradient(rgba(100, 255, 218, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(100, 255, 218, 0.03) 1px, transparent 1px)",
+            },
+          },
+        },
+      };
+    </script>
+
+    <!-- Custom Industrial CSS -->
+    <style>
+      :root {
+        --bg-color: #060d1a;
+        --grid-main: rgba(100, 255, 218, 0.15);
+        --grid-sub: rgba(100, 255, 218, 0.03);
+        --accent: #64ffda;
+      }
+
+      body {
+        background-color: var(--bg-color);
+        color: #ccd6f6;
+        overflow-x: hidden;
+      }
+
+      /* Blueprint Background System */
+      .blueprint-bg {
+        background-size:
+          100px 100px,
+          100px 100px,
+          20px 20px,
+          20px 20px;
+        background-position:
+          -2px -2px,
+          -2px -2px,
+          -1px -1px,
+          -1px -1px;
+        background-image:
+          linear-gradient(var(--grid-main) 1px, transparent 1px),
+          linear-gradient(90deg, var(--grid-main) 1px, transparent 1px),
+          linear-gradient(var(--grid-sub) 1px, transparent 1px),
+          linear-gradient(90deg, var(--grid-sub) 1px, transparent 1px);
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: -1;
+        pointer-events: none;
+      }
+
+      /* Industrial Border & Corners */
+      .industrial-panel {
+        background: rgba(11, 22, 44, 0.85);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(100, 255, 218, 0.2);
+        position: relative;
+        box-shadow:
+          inset 0 0 20px rgba(0, 0, 0, 0.5),
+          0 4px 6px rgba(0, 0, 0, 0.3);
+      }
+
+      .industrial-panel::before,
+      .industrial-panel::after {
+        content: "";
+        position: absolute;
+        width: 10px;
+        height: 10px;
+        border: 1px solid var(--accent);
+        pointer-events: none;
+      }
+      .industrial-panel::before {
+        top: -1px;
+        left: -1px;
+        border-right: none;
+        border-bottom: none;
+      }
+      .industrial-panel::after {
+        bottom: -1px;
+        right: -1px;
+        border-left: none;
+        border-top: none;
+      }
+
+      .corner-tr {
+        position: absolute;
+        top: -1px;
+        right: -1px;
+        width: 10px;
+        height: 10px;
+        border-top: 1px solid var(--accent);
+        border-right: 1px solid var(--accent);
+        pointer-events: none;
+      }
+      .corner-bl {
+        position: absolute;
+        bottom: -1px;
+        left: -1px;
+        width: 10px;
+        height: 10px;
+        border-bottom: 1px solid var(--accent);
+        border-left: 1px solid var(--accent);
+        pointer-events: none;
+      }
+
+      /* Custom Scrollbar for Terminals */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: rgba(6, 13, 26, 0.8);
+        border-left: 1px solid rgba(100, 255, 218, 0.1);
+      }
+      ::-webkit-scrollbar-thumb {
+        background: rgba(100, 255, 218, 0.3);
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: rgba(100, 255, 218, 0.6);
+      }
+
+      /* Glowing Text Utilities */
+      .text-glow {
+        text-shadow: 0 0 10px rgba(100, 255, 218, 0.4);
+      }
+      .text-glow-red {
+        text-shadow: 0 0 10px rgba(255, 100, 100, 0.4);
+      }
+
+      /* SVG Animation Utilities */
+      .dash-anim {
+        stroke-dasharray: 10;
+        animation: dash 20s linear infinite;
+      }
+      @keyframes dash {
+        to {
+          stroke-dashoffset: 1000;
+        }
+      }
+
+      .pulse-node {
+        animation: pulse-node 2s infinite cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      @keyframes pulse-node {
+        0% {
+          transform: scale(1);
+          filter: drop-shadow(0 0 2px rgba(100, 255, 218, 0.5));
+        }
+        50% {
+          transform: scale(1.05);
+          filter: drop-shadow(0 0 15px rgba(100, 255, 218, 0.8));
+        }
+        100% {
+          transform: scale(1);
+          filter: drop-shadow(0 0 2px rgba(100, 255, 218, 0.5));
+        }
+      }
+
+      /* Industrial Button */
+      .btn-industrial {
+        position: relative;
+        background: rgba(10, 25, 47, 0.5);
+        border: 1px solid rgba(100, 255, 218, 0.3);
+        color: var(--accent);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        font-family: "Rajdhani", sans-serif;
+        font-weight: 600;
+        overflow: hidden;
+        transition: all 0.3s ease;
+      }
+      .btn-industrial:hover {
+        background: rgba(100, 255, 218, 0.1);
+        border-color: var(--accent);
+        box-shadow: 0 0 15px rgba(100, 255, 218, 0.2);
+      }
+      .btn-industrial:active {
+        transform: translateY(1px);
+      }
+      .btn-industrial::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(100, 255, 218, 0.2),
+          transparent
+        );
+        transition: all 0.4s ease;
+      }
+      .btn-industrial:hover::after {
+        left: 100%;
+      }
+
+      /* Terminal Line specific */
+      .log-line {
+        border-left: 2px solid transparent;
+        transition: all 0.2s;
+      }
+      .log-line:hover {
+        background: rgba(100, 255, 218, 0.05);
+        border-left-color: var(--accent);
+      }
+
+      /* Layout Grid */
+      .workspace-grid {
+        display: grid;
+        grid-template-columns: 300px 1fr 350px;
+        gap: 1.5rem;
+        height: calc(100vh - 120px);
+      }
+
+      @media (max-width: 1280px) {
+        .workspace-grid {
+          grid-template-columns: 250px 1fr 300px;
+          gap: 1rem;
+        }
+      }
+      @media (max-width: 1024px) {
+        .workspace-grid {
+          grid-template-columns: 1fr;
+          grid-template-rows: auto 600px auto;
+          height: auto;
+        }
+      }
+
+      /* Switches */
+      .toggle-checkbox:checked {
+        right: 0;
+        border-color: #64ffda;
+      }
+      .toggle-checkbox:checked + .toggle-label {
+        background-color: rgba(100, 255, 218, 0.2);
+        border-color: #64ffda;
+      }
+      .toggle-checkbox:checked + .toggle-label::before {
+        transform: translateX(100%);
+        background-color: #64ffda;
+      }
+
+      /* Loader */
+      .glitch-text {
+        position: relative;
+      }
+      .glitch-text::before,
+      .glitch-text::after {
+        content: attr(data-text);
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        opacity: 0.8;
+      }
+      .glitch-text::before {
+        left: 2px;
+        text-shadow: -1px 0 red;
+        animation: glitch-anim 2s infinite linear alternate-reverse;
+      }
+      .glitch-text::after {
+        left: -2px;
+        text-shadow: -1px 0 blue;
+        animation: glitch-anim2 3s infinite linear alternate-reverse;
+      }
+      @keyframes glitch-anim {
+        0% {
+          clip-path: inset(20% 0 80% 0);
+        }
+        20% {
+          clip-path: inset(60% 0 10% 0);
+        }
+        40% {
+          clip-path: inset(40% 0 50% 0);
+        }
+        60% {
+          clip-path: inset(80% 0 5% 0);
+        }
+        80% {
+          clip-path: inset(10% 0 70% 0);
+        }
+        100% {
+          clip-path: inset(30% 0 50% 0);
+        }
+      }
+      @keyframes glitch-anim2 {
+        0% {
+          clip-path: inset(10% 0 60% 0);
+        }
+        20% {
+          clip-path: inset(80% 0 5% 0);
+        }
+        40% {
+          clip-path: inset(30% 0 20% 0);
+        }
+        60% {
+          clip-path: inset(70% 0 10% 0);
+        }
+        80% {
+          clip-path: inset(40% 0 30% 0);
+        }
+        100% {
+          clip-path: inset(50% 0 30% 0);
+        }
+      }
+
+      /* Mailbox / Queue SVG Styling */
+      .svg-queue-item {
+        fill: rgba(100, 255, 218, 0.1);
+        stroke: var(--accent);
+        stroke-width: 1;
+      }
+      .svg-queue-item.filled {
+        fill: rgba(100, 255, 218, 0.6);
+      }
+    </style>
+  </head>
+  <body
+    class="font-inter antialiased selection:bg-cyan-400 selection:text-navy-900"
+  >
+    <!-- Blueprint Background overlay -->
+    <div class="blueprint-bg"></div>
+
+    <!-- Navigation / Header -->
+    <header
+      class="fixed top-0 w-full z-50 bg-navy-900/90 border-b border-navy-700 backdrop-blur-md"
+    >
+      <div
+        class="max-w-[1600px] mx-auto px-6 h-16 flex items-center justify-between"
+      >
+        <div class="flex items-center gap-3">
+          <i data-lucide="cpu" class="text-cyan-400 w-6 h-6"></i>
+          <h1 class="font-bebas text-2xl tracking-widest text-white mt-1">
+            IPC <span class="text-cyan-400">SYS_MONITOR</span>
+          </h1>
+        </div>
+        <div
+          class="flex gap-6 font-rajdhani text-sm font-semibold tracking-wider text-eng-gray uppercase"
+        >
+          <a
+            href="#overview"
+            class="hover:text-cyan-400 transition-colors flex items-center gap-2"
+            ><i data-lucide="book-open" class="w-4 h-4"></i> Overview</a
+          >
+          <a
+            href="#simulator"
+            class="hover:text-cyan-400 transition-colors flex items-center gap-2 text-cyan-400"
+            ><i data-lucide="terminal" class="w-4 h-4"></i> Simulator</a
+          >
+          <div class="border-l border-navy-700 pl-6 flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+            SYS_ONLINE
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="pt-24 pb-12 px-6 max-w-[1600px] mx-auto">
+      <!-- HERO & OVERVIEW SECTION -->
+      <section id="overview" class="mb-12 gs-reveal">
+        <div class="industrial-panel p-8 md:p-12">
+          <div class="corner-tr"></div>
+          <div class="corner-bl"></div>
+          <div class="grid lg:grid-cols-2 gap-12 items-center">
+            <div>
+              <h2
+                class="font-bebas text-5xl md:text-7xl text-white tracking-wider mb-4 leading-none"
+                data-text="MESSAGE PASSING"
+              >
+                MESSAGE PASSING <br /><span class="text-cyan-400"
+                  >ARCHITECTURE</span
+                >
+              </h2>
+              <p class="font-rajdhani text-xl text-eng-gray mb-8 max-w-xl">
+                Analisis Arsitektur, Infrastruktur, dan Implementasi
+                Inter-Process Communication (IPC). Fasilitas pertukaran pesan
+                tingkat OS untuk komputasi paralel dan sistem terdistribusi.
+              </p>
+              <div class="flex gap-4">
+                <button
+                  onclick="
+                    document
+                      .getElementById('simulator')
+                      .scrollIntoView({ behavior: 'smooth' })
+                  "
+                  class="btn-industrial px-8 py-3 flex items-center gap-2"
+                >
+                  <i data-lucide="play" class="w-5 h-5"></i> INIT SIMULATION
+                </button>
+              </div>
+            </div>
+
+            <!-- Theoretical Modules Grid (Based on PPTX) -->
+            <div class="grid grid-cols-2 gap-4">
+              <div
+                class="border border-navy-700 bg-navy-800/50 p-4 hover:border-cyan-400/50 transition-colors"
+              >
+                <h3
+                  class="font-rajdhani text-cyan-400 font-bold mb-2 flex justify-between"
+                >
+                  <span>01. PARADIGMA</span>
+                  <i data-lucide="git-merge" class="w-4 h-4"></i>
+                </h3>
+                <p class="text-xs text-eng-gray font-mono">
+                  Shared Mem (Local/Fast) vs Msg Passing (Distributed/Scalable
+                  via Kernel).
+                </p>
+              </div>
+              <div
+                class="border border-navy-700 bg-navy-800/50 p-4 hover:border-cyan-400/50 transition-colors"
+              >
+                <h3
+                  class="font-rajdhani text-cyan-400 font-bold mb-2 flex justify-between"
+                >
+                  <span>02. KOMUNIKASI</span>
+                  <i data-lucide="network" class="w-4 h-4"></i>
+                </h3>
+                <p class="text-xs text-eng-gray font-mono">
+                  Direct (A->B, Rigid) vs Indirect (Mailbox/Port, Fleksibel).
+                </p>
+              </div>
+              <div
+                class="border border-navy-700 bg-navy-800/50 p-4 hover:border-cyan-400/50 transition-colors"
+              >
+                <h3
+                  class="font-rajdhani text-cyan-400 font-bold mb-2 flex justify-between"
+                >
+                  <span>03. SINKRONISASI</span>
+                  <i data-lucide="clock" class="w-4 h-4"></i>
+                </h3>
+                <p class="text-xs text-eng-gray font-mono">
+                  Blocking (Synchronous wait) vs Non-Blocking (Asynchronous
+                  submit).
+                </p>
+              </div>
+              <div
+                class="border border-navy-700 bg-navy-800/50 p-4 hover:border-cyan-400/50 transition-colors"
+              >
+                <h3
+                  class="font-rajdhani text-cyan-400 font-bold mb-2 flex justify-between"
+                >
+                  <span>04. INFRASTRUKTUR</span>
+                  <i data-lucide="layers" class="w-4 h-4"></i>
+                </h3>
+                <p class="text-xs text-eng-gray font-mono">
+                  Pipes (Half-duplex), Message Queue (Full-duplex), Sockets
+                  (Network).
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- MAIN SIMULATOR WORKSPACE -->
+      <section id="simulator" class="gs-reveal">
+        <!-- Global Control Bar -->
+        <div
+          class="industrial-panel mb-4 p-4 flex flex-wrap items-center justify-between gap-4"
+        >
+          <div class="corner-tr"></div>
+          <div class="corner-bl"></div>
+          <div class="flex items-center gap-6">
+            <div class="flex items-center gap-2">
+              <i data-lucide="settings-2" class="w-5 h-5 text-cyan-400"></i>
+              <span class="font-bebas tracking-widest text-xl pt-1"
+                >SYS_CONFIG</span
+              >
+            </div>
+            <div class="h-6 w-px bg-navy-700"></div>
+
+            <!-- Config Toggles -->
+            <div
+              class="flex items-center gap-6 font-rajdhani font-semibold text-sm tracking-wide"
+            >
+              <!-- Direct / Indirect -->
+              <div class="flex items-center gap-3">
+                <span class="text-eng-gray" id="lbl-direct">DIRECT</span>
+                <label class="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="mode-indirect"
+                    class="sr-only peer"
+                  />
+                  <div
+                    class="w-11 h-6 bg-navy-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500/50 border border-navy-600"
+                  ></div>
+                </label>
+                <span class="text-cyan-400" id="lbl-indirect"
+                  >INDIRECT (MAILBOX)</span
+                >
+              </div>
+
+              <div class="h-6 w-px bg-navy-700"></div>
+
+              <!-- Blocking / Non-Blocking -->
+              <div class="flex items-center gap-3">
+                <span class="text-eng-gray" id="lbl-blocking">BLOCKING</span>
+                <label class="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="mode-nonblocking"
+                    class="sr-only peer"
+                    checked
+                  />
+                  <div
+                    class="w-11 h-6 bg-navy-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500/50 border border-navy-600"
+                  ></div>
+                </label>
+                <span class="text-cyan-400" id="lbl-nonblocking"
+                  >NON-BLOCKING</span
+                >
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-4">
+            <div
+              class="font-mono text-xs text-eng-gray bg-navy-900 px-3 py-1 border border-navy-700"
+            >
+              SPEED: <span class="text-cyan-400">1.0x</span>
+            </div>
+            <button
+              class="btn-industrial px-4 py-1 text-sm flex gap-2 items-center text-red-400 border-red-900/50 hover:bg-red-900/20 hover:border-red-500"
+              onclick="resetSimulation()"
+            >
+              <i data-lucide="rotate-ccw" class="w-4 h-4"></i> RESET
+            </button>
+          </div>
+        </div>
+
+        <!-- Workspace 3 Columns -->
+        <div class="workspace-grid">
+          <!-- LEFT: Process Panel -->
+          <div class="flex flex-col gap-4">
+            <div class="industrial-panel flex-1 flex flex-col overflow-hidden">
+              <div
+                class="bg-navy-800/80 p-3 border-b border-navy-700 flex justify-between items-center"
+              >
+                <h3 class="font-bebas tracking-widest text-lg text-white">
+                  PROCESS_NODE
+                </h3>
+                <i data-lucide="cpu" class="w-4 h-4 text-cyan-400"></i>
+              </div>
+
+              <div class="p-4 flex-1 overflow-y-auto" id="process-list">
+                <!-- Process Cards inserted via JS -->
+              </div>
+
+              <div class="p-4 border-t border-navy-700 bg-navy-900/50">
+                <button
+                  id="btn-add-process"
+                  class="btn-industrial w-full py-2 flex items-center justify-center gap-2 text-sm"
+                >
+                  <i data-lucide="plus" class="w-4 h-4"></i> ALLOCATE PROCESS
+                </button>
+              </div>
+            </div>
+
+            <!-- IPC Dispatcher Form -->
+            <div class="industrial-panel p-4">
+              <h3
+                class="font-rajdhani font-bold text-cyan-400 mb-3 uppercase tracking-wider text-sm border-b border-navy-700 pb-2"
+              >
+                IPC Dispatcher
+              </h3>
+              <div class="flex flex-col gap-3 font-mono text-xs">
+                <div>
+                  <label class="text-eng-gray block mb-1">SRC_PID:</label>
+                  <select
+                    id="sel-src"
+                    class="w-full bg-navy-900 border border-navy-600 text-white p-1.5 focus:border-cyan-400 outline-none"
+                  >
+                    <!-- Opts via JS -->
+                  </select>
+                </div>
+                <div>
+                  <label class="text-eng-gray block mb-1"
+                    >DEST_PID
+                    <span id="dest-label-type" class="text-cyan-400 text-[10px]"
+                      >(Direct)</span
+                    >:</label
+                  >
+                  <select
+                    id="sel-dest"
+                    class="w-full bg-navy-900 border border-navy-600 text-white p-1.5 focus:border-cyan-400 outline-none"
+                  >
+                    <!-- Opts via JS -->
+                  </select>
+                </div>
+                <div>
+                  <label class="text-eng-gray block mb-1">PAYLOAD:</label>
+                  <input
+                    type="text"
+                    id="inp-payload"
+                    value="DATA_PACKET_01"
+                    class="w-full bg-navy-900 border border-navy-600 text-cyan-400 p-1.5 focus:border-cyan-400 outline-none placeholder-navy-600"
+                  />
+                </div>
+                <button
+                  id="btn-send-msg"
+                  class="btn-industrial py-2 mt-2 font-bold bg-cyan-900/30"
+                >
+                  SYS_SEND()
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- CENTER: Simulation Canvas / Topology -->
+          <div
+            class="industrial-panel relative overflow-hidden flex flex-col group"
+          >
+            <div class="corner-tr"></div>
+            <div class="corner-bl"></div>
+            <div
+              class="absolute top-4 left-4 flex gap-2 z-10 font-mono text-[10px] text-eng-gray"
+            >
+              <span class="bg-navy-900 px-2 py-1 border border-navy-700"
+                >CANVAS_STATUS: <span class="text-green-400">ACTIVE</span></span
+              >
+              <span
+                class="bg-navy-900 px-2 py-1 border border-navy-700"
+                id="canvas-mode-display"
+                >TOPOLOGY: DIRECT_LINK</span
+              >
+            </div>
+
+            <!-- SVG System Topology Container -->
+            <div class="flex-1 w-full h-full relative" id="topology-container">
+              <!-- Blueprint grid specific to canvas -->
+              <div
+                class="absolute inset-0 opacity-30"
+                style="
+                  background-image:
+                    linear-gradient(#1a365d 1px, transparent 1px),
+                    linear-gradient(90deg, #1a365d 1px, transparent 1px);
+                  background-size: 40px 40px;
+                "
+              ></div>
+
+              <svg
+                class="absolute inset-0 w-full h-full pointer-events-none"
+                id="sim-svg"
+              >
+                <defs>
+                  <marker
+                    id="arrowhead"
+                    markerWidth="10"
+                    markerHeight="7"
+                    refX="9"
+                    refY="3.5"
+                    orient="auto"
+                  >
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#64ffda" />
+                  </marker>
+                  <marker
+                    id="arrowhead-dim"
+                    markerWidth="10"
+                    markerHeight="7"
+                    refX="9"
+                    refY="3.5"
+                    orient="auto"
+                  >
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#1a365d" />
+                  </marker>
+                  <!-- Filter for glowing lines -->
+                  <filter id="glow">
+                    <feGaussianBlur stdDeviation="2.5" result="coloredBlur" />
+                    <feMerge>
+                      <feMergeNode in="coloredBlur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                </defs>
+
+                <!-- Dynamic Paths rendered via JS -->
+                <g id="svg-paths-layer"></g>
+
+                <!-- Dynamic Packets rendered via JS -->
+                <g id="svg-packets-layer"></g>
+              </svg>
+
+              <!-- HTML Overlays for Nodes (Easier layout) -->
+              <div
+                id="html-nodes-layer"
+                class="absolute inset-0 pointer-events-none"
+              >
+                <!-- Mailbox / OS Kernel Centered (Hidden in Direct mode) -->
+                <div
+                  id="node-kernel"
+                  class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 opacity-0 transition-opacity duration-500"
+                >
+                  <div
+                    class="bg-navy-900/90 border border-cyan-400 p-3 shadow-[0_0_20px_rgba(100,255,218,0.2)] text-center relative pointer-events-auto"
+                  >
+                    <div
+                      class="absolute -top-3 left-1/2 -translate-x-1/2 bg-navy-900 px-2 text-[10px] text-cyan-400 font-mono border border-cyan-400"
+                    >
+                      OS_KERNEL
+                    </div>
+                    <i
+                      data-lucide="layers"
+                      class="w-8 h-8 text-white mx-auto mb-2 mt-1 pulse-node"
+                    ></i>
+                    <div
+                      class="font-bebas text-lg tracking-widest mb-1 text-white"
+                    >
+                      MAILBOX_01
+                    </div>
+
+                    <!-- Queue Visualization -->
+                    <div
+                      class="h-4 border border-navy-600 bg-navy-800 flex gap-0.5 p-0.5 mt-2"
+                      id="kernel-queue"
+                    >
+                      <div class="flex-1 bg-navy-700/50"></div>
+                      <div class="flex-1 bg-navy-700/50"></div>
+                      <div class="flex-1 bg-navy-700/50"></div>
+                      <div class="flex-1 bg-navy-700/50"></div>
+                      <div class="flex-1 bg-navy-700/50"></div>
+                    </div>
+                    <div
+                      class="text-[9px] text-eng-gray mt-1 font-mono text-left"
+                      id="lbl-queue-status"
+                    >
+                      Queue: 0/5
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- RIGHT: Log Panel -->
+          <div class="industrial-panel flex flex-col">
+            <div class="corner-tr"></div>
+            <div
+              class="bg-navy-800/80 p-3 border-b border-navy-700 flex justify-between items-center"
+            >
+              <h3 class="font-bebas tracking-widest text-lg text-white">
+                SYSTEM_LOGS
+              </h3>
+              <i data-lucide="terminal" class="w-4 h-4 text-cyan-400"></i>
+            </div>
+
+            <div
+              class="flex-1 bg-navy-900/90 p-3 font-mono text-xs overflow-y-auto flex flex-col gap-1"
+              id="log-container"
+            >
+              <div class="text-cyan-700">
+                Starting IPC Simulator Environment...
+              </div>
+              <div class="text-cyan-700">Kernel initialized.</div>
+              <div class="text-cyan-700">Waiting for process allocation...</div>
+            </div>
+
+            <!-- State Monitor Table -->
+            <div
+              class="h-48 border-t border-navy-700 bg-navy-800/50 p-3 flex flex-col"
+            >
+              <h4
+                class="font-rajdhani text-[11px] text-cyan-400 font-bold uppercase tracking-wider mb-2"
+              >
+                Process States Monitor
+              </h4>
+              <div class="flex-1 overflow-y-auto">
+                <table
+                  class="w-full text-left text-[10px] font-mono text-eng-gray"
+                  id="state-table"
+                >
+                  <thead class="sticky top-0 bg-navy-800 text-white shadow">
+                    <tr>
+                      <th class="py-1 px-1">PID</th>
+                      <th class="py-1 px-1">STATE</th>
+                      <th class="py-1 px-1">WAIT_FOR</th>
+                    </tr>
+                  </thead>
+                  <tbody id="state-table-body">
+                    <!-- Dynamic Rows -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Templates (Hidden) -->
+    <template id="tpl-process-card">
+      <div
+        class="process-card border border-navy-700 bg-navy-900/50 p-3 mb-3 relative group overflow-hidden transition-all hover:border-cyan-400/50 pointer-events-auto"
+      >
+        <div
+          class="absolute left-0 top-0 bottom-0 w-1 bg-cyan-400/30 group-hover:bg-cyan-400 transition-colors process-indicator"
+        ></div>
+        <div class="flex justify-between items-start mb-2 pl-2">
+          <div>
+            <h4
+              class="font-bebas text-lg text-white tracking-widest process-name"
+            >
+              PROCESS_A
+            </h4>
+            <div class="text-[10px] font-mono text-eng-gray process-pid">
+              PID: 1001
+            </div>
+          </div>
+          <span
+            class="process-state px-2 py-0.5 text-[9px] font-mono border border-green-500/30 text-green-400 bg-green-500/10"
+            >IDLE</span
+          >
+        </div>
+        <div
+          class="pl-2 mt-2 font-mono text-[10px] text-eng-gray border-t border-navy-800 pt-2 flex justify-between"
+        >
+          <span>Mem: <span class="text-white">12 MB</span></span>
+          <span
+            >Messages:
+            <span class="text-cyan-400 process-msg-count">0</span></span
+          >
+        </div>
+      </div>
+    </template>
+
+    <!-- GSAP for Animations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/MotionPathPlugin.min.js"></script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- App Logic -->
+    <script>
+      // Init Lucide
+      lucide.createIcons();
+      gsap.registerPlugin(MotionPathPlugin);
+
+      // --- SIMULATION STATE ---
+      const State = {
+        mode: "direct", // 'direct' or 'indirect'
+        sync: "nonblocking", // 'blocking' or 'nonblocking'
+        processes: [],
+        processCounter: 0,
+        mailboxQueue: [],
+        maxQueue: 5,
+        messageIdCounter: 0,
+        canvasNodes: {}, // store positions
+      };
+
+      const configModes = {
+        indirect: document.getElementById("mode-indirect"),
+        nonblocking: document.getElementById("mode-nonblocking"),
+      };
+
+      const UI = {
+        processList: document.getElementById("process-list"),
+        selSrc: document.getElementById("sel-src"),
+        selDest: document.getElementById("sel-dest"),
+        destLabel: document.getElementById("dest-label-type"),
+        inpPayload: document.getElementById("inp-payload"),
+        btnSend: document.getElementById("btn-send-msg"),
+        btnAddProcess: document.getElementById("btn-add-process"),
+        logContainer: document.getElementById("log-container"),
+        stateTableBody: document.getElementById("state-table-body"),
+        svgPathsLayer: document.getElementById("svg-paths-layer"),
+        svgPacketsLayer: document.getElementById("svg-packets-layer"),
+        htmlNodesLayer: document.getElementById("html-nodes-layer"),
+        nodeKernel: document.getElementById("node-kernel"),
+        queueVisuals: document.getElementById("kernel-queue").children,
+        lblQueueStatus: document.getElementById("lbl-queue-status"),
+        canvasModeDisplay: document.getElementById("canvas-mode-display"),
+      };
+
+      // Utilities
+      function getTimestamp() {
+        const now = new Date();
+        return `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}:${now.getSeconds().toString().padStart(2, "0")}.${now.getMilliseconds().toString().padStart(3, "0")}`;
+      }
+
+      function logMsg(msg, type = "info") {
+        const div = document.createElement("div");
+        div.className = `log-line pl-2 py-0.5 border-l-2 ${type === "error" ? "text-red-400 border-red-500" : type === "success" ? "text-cyan-400 border-cyan-400" : type === "warn" ? "text-yellow-400 border-yellow-400" : "text-eng-gray border-navy-700"}`;
+        div.innerHTML = `<span class="text-navy-500 mr-2">[${getTimestamp()}]</span> ${msg}`;
+        UI.logContainer.appendChild(div);
+        UI.logContainer.scrollTop = UI.logContainer.scrollHeight;
+      }
+
+      // Layout Calculator for Canvas Nodes
+      function calculateNodePositions() {
+        const rect = UI.htmlNodesLayer.getBoundingClientRect();
+        const width = rect.width;
+        const height = rect.height;
+        const centerX = width / 2;
+        const centerY = height / 2;
+
+        State.canvasNodes["MAILBOX"] = { x: centerX, y: centerY };
+
+        const r = Math.min(width, height) * 0.35; // Radius
+        const total = State.processes.length;
+
+        State.processes.forEach((p, i) => {
+          // If 1 or 2 processes, position them left/right
+          let x, y;
+          if (total === 1) {
+            x = width * 0.2;
+            y = centerY;
+          } else if (total === 2) {
+            x = i === 0 ? width * 0.2 : width * 0.8;
+            y = centerY;
+          } else {
+            // Circle layout for > 2
+            const angle = (i / total) * Math.PI * 2 - Math.PI / 2;
+            x = centerX + Math.cos(angle) * r;
+            y = centerY + Math.sin(angle) * r;
+          }
+          State.canvasNodes[p.id] = { x, y };
+
+          // Update HTML Element position
+          const el = document.getElementById(`node-ui-${p.id}`);
+          if (el) {
+            el.style.left = `${x}px`;
+            el.style.top = `${y}px`;
+          }
+        });
+        drawTopology();
+      }
+
+      window.addEventListener("resize", calculateNodePositions);
+
+      // Core Functions
+      function createProcess() {
+        if (State.processes.length >= 6) {
+          logMsg("Maximum processes limit reached (6).", "error");
+          return;
+        }
+
+        State.processCounter++;
+        const letter = String.fromCharCode(64 + State.processCounter); // A, B, C...
+        const p = {
+          id: `P${State.processCounter}`,
+          name: `PROCESS_${letter}`,
+          pid: 1000 + State.processCounter,
+          state: "IDLE", // IDLE, BLOCKED
+          waitTarget: "-",
+          messagesReceived: 0,
+        };
+        State.processes.push(p);
+
+        logMsg(`Allocated memory for ${p.name} (PID: ${p.pid})`, "info");
+        renderUI();
+        calculateNodePositions();
+      }
+
+      function updateProcessState(id, newState, target = "-") {
+        const p = State.processes.find((x) => x.id === id);
+        if (p) {
+          p.state = newState;
+          p.waitTarget = target;
+          renderStateTable();
+
+          // Update indicator
+          const el = document.getElementById(`card-${id}`);
+          if (el) {
+            const badge = el.querySelector(".process-state");
+            if (newState === "BLOCKED") {
+              badge.className =
+                "process-state px-2 py-0.5 text-[9px] font-mono border border-red-500/30 text-red-400 bg-red-500/10";
+              badge.innerText = "BLOCKED";
+              el.querySelector(".process-indicator").classList.replace(
+                "bg-cyan-400",
+                "bg-red-500",
+              );
+            } else {
+              badge.className =
+                "process-state px-2 py-0.5 text-[9px] font-mono border border-green-500/30 text-green-400 bg-green-500/10";
+              badge.innerText = "IDLE";
+              el.querySelector(".process-indicator").classList.replace(
+                "bg-red-500",
+                "bg-cyan-400",
+              );
+            }
+          }
+
+          // Update canvas node styling
+          const nodeUI = document.getElementById(`node-ui-${id}`);
+          if (nodeUI) {
+            if (newState === "BLOCKED") {
+              nodeUI.classList.add("border-red-500");
+              nodeUI.classList.remove("border-cyan-400");
+              nodeUI
+                .querySelector(".icon-svg")
+                .classList.replace("text-cyan-400", "text-red-400");
+            } else {
+              nodeUI.classList.remove("border-red-500");
+              nodeUI.classList.add("border-cyan-400");
+              nodeUI
+                .querySelector(".icon-svg")
+                .classList.replace("text-red-400", "text-cyan-400");
+            }
+          }
+        }
+      }
+
+      // Draw Links
+      function drawTopology() {
+        UI.svgPathsLayer.innerHTML = "";
+        const paths = [];
+
+        if (State.mode === "direct") {
+          // Draw mesh network
+          for (let i = 0; i < State.processes.length; i++) {
+            for (let j = i + 1; j < State.processes.length; j++) {
+              paths.push({
+                from: State.processes[i].id,
+                to: State.processes[j].id,
+              });
+            }
+          }
+        } else {
+          // Draw star network to Mailbox
+          State.processes.forEach((p) => {
+            paths.push({ from: p.id, to: "MAILBOX" });
+          });
+        }
+
+        paths.forEach((link) => {
+          const p1 = State.canvasNodes[link.from];
+          const p2 = State.canvasNodes[link.to];
+          if (p1 && p2) {
+            const path = document.createElementNS(
+              "http://www.w3.org/2000/svg",
+              "path",
+            );
+            // Create subtle curve
+            const mx = (p1.x + p2.x) / 2;
+            const my = (p1.y + p2.y) / 2 - 20; // Slight arc
+
+            path.setAttribute(
+              "d",
+              `M ${p1.x} ${p1.y} Q ${mx} ${my} ${p2.x} ${p2.y}`,
+            );
+            path.setAttribute("fill", "none");
+            path.setAttribute("stroke", "#1a365d"); // Dim color
+            path.setAttribute("stroke-width", "1.5");
+            path.setAttribute("stroke-dasharray", "4 4"); // Blueprint style
+            path.id = `path-${link.from}-${link.to}`;
+
+            UI.svgPathsLayer.appendChild(path);
+          }
+        });
+      }
+
+      function createHtmlCanvasNode(p) {
+        const div = document.createElement("div");
+        div.id = `node-ui-${p.id}`;
+        div.className = `absolute -translate-x-1/2 -translate-y-1/2 w-32 bg-navy-900/90 border border-cyan-400 p-2 shadow-[0_0_15px_rgba(0,0,0,0.5)] text-center transition-colors duration-300 pointer-events-auto z-10`;
+        div.innerHTML = `
+                <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-navy-900 px-2 text-[10px] text-eng-gray font-mono border border-navy-700">${p.pid}</div>
+                <i data-lucide="cpu" class="icon-svg w-6 h-6 text-cyan-400 mx-auto mb-1"></i>
+                <div class="font-bebas text-sm tracking-widest text-white">${p.name}</div>
+            `;
+        return div;
+      }
+
+      // Simulating the actual Message Passing Send
+      function sendMessage() {
+        const srcId = UI.selSrc.value;
+        const destId = State.mode === "direct" ? UI.selDest.value : "MAILBOX";
+        const originalDest = UI.selDest.value; // Real destination process
+        const payload = UI.inpPayload.value;
+
+        if (!srcId) return;
+        if (State.mode === "direct" && srcId === originalDest) {
+          logMsg("Cannot send message to self in direct mode.", "warn");
+          return;
+        }
+
+        State.messageIdCounter++;
+        const msgId = `MSG_${State.messageIdCounter}`;
+        logMsg(`[${msgId}] ${srcId} preparing send()...`, "info");
+
+        // Blocking logic
+        if (State.sync === "blocking") {
+          updateProcessState(srcId, "BLOCKED", destId);
+          logMsg(`[${srcId}] Context Switch -> WAITING_ACK`, "warn");
+        }
+
+        // Animate
+        animatePacket(srcId, destId, payload, () => {
+          if (State.mode === "direct") {
+            // Arrived at destination
+            receiveMessage(originalDest, srcId, payload, msgId);
+          } else {
+            // Arrived at Kernel Mailbox
+            pushToMailbox(srcId, originalDest, payload, msgId);
+          }
+        });
+      }
+
+      function animatePacket(fromId, toId, text, onComplete) {
+        const p1 = State.canvasNodes[fromId];
+        const p2 = State.canvasNodes[toId];
+
+        if (!p1 || !p2) {
+          onComplete();
+          return;
+        }
+
+        const packet = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "g",
+        );
+
+        // Highlight path
+        const pathId1 = `path-${fromId}-${toId}`;
+        const pathId2 = `path-${toId}-${fromId}`; // Might be drawn the other way
+        const existingPath =
+          document.getElementById(pathId1) || document.getElementById(pathId2);
+        if (existingPath) {
+          gsap.to(existingPath, {
+            stroke: "#64ffda",
+            duration: 0.3,
+            yoyo: true,
+            repeat: 1,
+          });
+        }
+
+        // Create Packet Element
+        packet.innerHTML = `
+                <rect x="-20" y="-10" width="40" height="20" fill="#0b162c" stroke="#64ffda" stroke-width="1.5" rx="2"></rect>
+                <text x="0" y="3" fill="#ffffff" font-size="8" font-family="monospace" text-anchor="middle">PKT</text>
+            `;
+        UI.svgPacketsLayer.appendChild(packet);
+
+        // Set initial position
+        gsap.set(packet, { x: p1.x, y: p1.y });
+
+        // Create curved motion
+        const mx = (p1.x + p2.x) / 2;
+        const my = (p1.y + p2.y) / 2 - 20;
+
+        const duration = 1.5; // Configurable speed later
+
+        gsap.to(packet, {
+          duration: duration,
+          motionPath: {
+            path: [
+              { x: p1.x, y: p1.y },
+              { x: mx, y: my },
+              { x: p2.x, y: p2.y },
+            ],
+            curviness: 1,
+          },
+          ease: "power1.inOut",
+          onComplete: () => {
+            packet.remove();
+            onComplete();
+          },
+        });
+      }
+
+      function pushToMailbox(srcId, destId, payload, msgId) {
+        logMsg(`[Kernel] Mailbox received msg from ${srcId}.`, "info");
+
+        if (State.mailboxQueue.length >= State.maxQueue) {
+          logMsg(`[Kernel] Buffer Full! Message dropped.`, "error");
+          if (State.sync === "blocking") {
+            // In real OS, might block forever or throw error. We unblock with fail.
+            setTimeout(() => {
+              updateProcessState(srcId, "IDLE");
+              logMsg(`[${srcId}] Unblocked with ERROR_QUEUE_FULL`, "warn");
+            }, 500);
+          }
+          return;
+        }
+
+        // Enqueue
+        State.mailboxQueue.push({ srcId, destId, payload, msgId });
+        updateQueueVisual();
+
+        // Simulate Kernel processing delay then forward
+        setTimeout(() => {
+          processMailbox();
+        }, 500);
+      }
+
+      function processMailbox() {
+        if (State.mailboxQueue.length === 0) return;
+
+        // Pop first message (FIFO)
+        const msg = State.mailboxQueue.shift();
+        updateQueueVisual();
+
+        logMsg(`[Kernel] Dispatching ${msg.msgId} to ${msg.destId}...`, "info");
+
+        animatePacket("MAILBOX", msg.destId, msg.payload, () => {
+          receiveMessage(msg.destId, msg.srcId, msg.payload, msg.msgId);
+        });
+      }
+
+      function updateQueueVisual() {
+        const count = State.mailboxQueue.length;
+        UI.lblQueueStatus.innerText = `Queue: ${count}/${State.maxQueue}`;
+
+        for (let i = 0; i < UI.queueVisuals.length; i++) {
+          if (i < count) {
+            UI.queueVisuals[i].classList.replace(
+              "bg-navy-700/50",
+              "bg-cyan-500",
+            );
+            UI.queueVisuals[i].classList.add(
+              "shadow-[0_0_8px_rgba(100,255,218,0.8)]",
+            );
+          } else {
+            UI.queueVisuals[i].classList.replace(
+              "bg-cyan-500",
+              "bg-navy-700/50",
+            );
+            UI.queueVisuals[i].classList.remove(
+              "shadow-[0_0_8px_rgba(100,255,218,0.8)]",
+            );
+          }
+        }
+      }
+
+      function receiveMessage(targetId, srcId, payload, msgId) {
+        logMsg(`[${targetId}] Received ${msgId}: "${payload}"`, "success");
+
+        const p = State.processes.find((x) => x.id === targetId);
+        if (p) {
+          p.messagesReceived++;
+          const card = document.getElementById(`card-${targetId}`);
+          if (card) {
+            card.querySelector(".process-msg-count").innerText =
+              p.messagesReceived;
+            // Flash effect
+            gsap.fromTo(
+              card,
+              { backgroundColor: "rgba(100,255,218,0.3)" },
+              { backgroundColor: "rgba(11,22,44,0.5)", duration: 0.5 },
+            );
+          }
+        }
+
+        // Unblock sender if blocking mode
+        if (State.sync === "blocking") {
+          logMsg(`[Kernel] ACK received. Unblocking ${srcId}.`, "info");
+          updateProcessState(srcId, "IDLE");
+        }
+      }
+
+      // UI Renderers
+      function renderUI() {
+        // Render Process List (Left Panel)
+        const template = document.getElementById("tpl-process-card").content;
+        UI.processList.innerHTML = "";
+        UI.selSrc.innerHTML = "";
+        UI.selDest.innerHTML = "";
+
+        State.processes.forEach((p) => {
+          const clone = document.importNode(template, true);
+          const root = clone.querySelector(".process-card");
+          root.id = `card-${p.id}`;
+          clone.querySelector(".process-name").innerText = p.name;
+          clone.querySelector(".process-pid").innerText = `PID: ${p.pid}`;
+          clone.querySelector(".process-msg-count").innerText =
+            p.messagesReceived;
+
+          UI.processList.appendChild(clone);
+
+          // Update Selects
+          UI.selSrc.add(new Option(p.name, p.id));
+          UI.selDest.add(new Option(p.name, p.id));
+        });
+
+        // Clean & Render Canvas HTML nodes
+        const existingNodes = UI.htmlNodesLayer.querySelectorAll(
+          'div[id^="node-ui-"]',
+        );
+        existingNodes.forEach((n) => n.remove());
+
+        State.processes.forEach((p) => {
+          UI.htmlNodesLayer.appendChild(createHtmlCanvasNode(p));
+        });
+
+        // Re-init lucide icons for new elements
+        lucide.createIcons();
+
+        renderStateTable();
+        calculateNodePositions();
+      }
+
+      function renderStateTable() {
+        UI.stateTableBody.innerHTML = "";
+        State.processes.forEach((p) => {
+          const tr = document.createElement("tr");
+          tr.className = "border-b border-navy-700/50 hover:bg-navy-700/30";
+          tr.innerHTML = `
+                    <td class="py-1 px-1 text-white">${p.pid}</td>
+                    <td class="py-1 px-1 ${p.state === "BLOCKED" ? "text-red-400" : "text-green-400"}">${p.state}</td>
+                    <td class="py-1 px-1">${p.waitTarget}</td>
+                `;
+          UI.stateTableBody.appendChild(tr);
+        });
+      }
+
+      // Toggles Logic
+      function updateConfigDisplay() {
+        State.mode = configModes.indirect.checked ? "indirect" : "direct";
+        State.sync = configModes.nonblocking.checked
+          ? "nonblocking"
+          : "blocking";
+
+        // Visual updates
+        document.getElementById("lbl-direct").className =
+          State.mode === "direct" ? "text-cyan-400 font-bold" : "text-eng-gray";
+        document.getElementById("lbl-indirect").className =
+          State.mode === "indirect"
+            ? "text-cyan-400 font-bold"
+            : "text-eng-gray";
+
+        document.getElementById("lbl-blocking").className =
+          State.sync === "blocking"
+            ? "text-cyan-400 font-bold"
+            : "text-eng-gray";
+        document.getElementById("lbl-nonblocking").className =
+          State.sync === "nonblocking"
+            ? "text-cyan-400 font-bold"
+            : "text-eng-gray";
+
+        if (State.mode === "indirect") {
+          UI.nodeKernel.classList.remove("opacity-0");
+          UI.destLabel.innerText = "(via Mailbox)";
+          UI.canvasModeDisplay.innerText = "TOPOLOGY: KERNEL_ROUTING (STAR)";
+        } else {
+          UI.nodeKernel.classList.add("opacity-0");
+          UI.destLabel.innerText = "(Direct)";
+          UI.canvasModeDisplay.innerText = "TOPOLOGY: DIRECT_LINK (MESH)";
+          // clear queue
+          State.mailboxQueue = [];
+          updateQueueVisual();
+        }
+
+        logMsg(
+          `System architecture reconfigured: ${State.mode.toUpperCase()} / ${State.sync.toUpperCase()}`,
+          "warn",
+        );
+        drawTopology();
+      }
+
+      // Init & Event Listeners
+      function init() {
+        // Initial Entry Animation
+        gsap.from(".gs-reveal", {
+          y: 50,
+          opacity: 0,
+          duration: 1,
+          stagger: 0.2,
+          ease: "power3.out",
+        });
+
+        UI.btnAddProcess.addEventListener("click", createProcess);
+        UI.btnSend.addEventListener("click", sendMessage);
+
+        configModes.indirect.addEventListener("change", updateConfigDisplay);
+        configModes.nonblocking.addEventListener("change", updateConfigDisplay);
+
+        // Create initial processes
+        setTimeout(() => {
+          createProcess();
+          setTimeout(() => {
+            createProcess();
+            updateConfigDisplay();
+          }, 300);
+        }, 1000);
+      }
+
+      function resetSimulation() {
+        State.processes = [];
+        State.processCounter = 0;
+        State.mailboxQueue = [];
+        State.messageIdCounter = 0;
+        UI.logContainer.innerHTML = "";
+        logMsg("SYSTEM HARD RESET EXECUTED", "error");
+        updateQueueVisual();
+        renderUI();
+      }
+
+      // Run
+      window.addEventListener("DOMContentLoaded", init);
+    </script>
+  </body>
+</html>
